@@ -1,0 +1,955 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>IronDumbbell</title>
+    
+    <!-- Tailwind CSS for Styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- React & ReactDOM -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+    
+    <!-- Babel to compile React JSX in the browser -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <style>
+        /* Hide scrollbars for a more app-like feel */
+        ::-webkit-scrollbar { display: none; }
+        body { -ms-overflow-style: none; scrollbar-width: none; background-color: #0a0a0a; }
+        
+        /* Pulse Animation */
+        @keyframes pulse-border {
+            0% { box-shadow: 0 0 0 0 rgba(249, 115, 22, 0.4); }
+            70% { box-shadow: 0 0 0 6px rgba(249, 115, 22, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(249, 115, 22, 0); }
+        }
+        .pulse-border { animation: pulse-border 2s infinite; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        const apiKey = "";
+
+        // --- DATABASE ---
+        const MUSCLE_GROUPS = [
+          { id: 'chest', name: 'Chest', color: 'bg-red-500/20 text-red-500' },
+          { id: 'back', name: 'Back', color: 'bg-blue-500/20 text-blue-500' },
+          { id: 'legs', name: 'Legs', color: 'bg-green-500/20 text-green-500' },
+          { id: 'shoulders', name: 'Shoulders', color: 'bg-purple-500/20 text-purple-500' },
+          { id: 'arms', name: 'Arms', color: 'bg-yellow-500/20 text-yellow-500' },
+          { id: 'core', name: 'Core', color: 'bg-teal-500/20 text-teal-500' }
+        ];
+
+        const MACRO_GROUPS = [
+          { id: 'upper', name: "Upper Body", muscles: ['chest', 'back', 'shoulders', 'arms'] },
+          { id: 'core', name: "Core", muscles: ['core'] },
+          { id: 'lower', name: "Lower Body", muscles: ['legs'] }
+        ];
+
+        const EXERCISES = [
+          { id: 'db_bench', name: 'Dumbbell Bench Press', muscle: 'chest', type: 'press', desc: 'Lie on a flat bench. Push dumbbells up until arms are fully extended, then lower slowly.', sets: 3, reps: '8-12', met: 5.0 },
+          { id: 'db_fly', name: 'Dumbbell Fly', muscle: 'chest', type: 'fly', desc: 'Lie on a bench. Open arms wide with a slight bend in elbows, then bring dumbbells together.', sets: 3, reps: '10-15', met: 4.0 },
+          { id: 'db_row', name: 'One-Arm DB Row', muscle: 'back', type: 'row', desc: 'Support body on a bench. Pull dumbbell up to your hip, squeezing the back muscles.', sets: 3, reps: '8-12', met: 5.0 },
+          { id: 'db_pullover', name: 'Dumbbell Pullover', muscle: 'back', type: 'pull', desc: 'Lie perpendicular on a bench. Lower a dumbbell behind your head, then pull back over chest.', sets: 3, reps: '10-15', met: 4.0 },
+          { id: 'db_goblet', name: 'Goblet Squat', muscle: 'legs', type: 'squat', desc: 'Hold one dumbbell vertically at chest height. Squat down until thighs are parallel to the floor.', sets: 4, reps: '10-15', met: 6.0 },
+          { id: 'db_rdl', name: 'Romanian Deadlift', muscle: 'legs', type: 'hinge', desc: 'Hold dumbbells in front of thighs. Hinge at hips with slight knee bend until you feel a hamstring stretch.', sets: 4, reps: '8-12', met: 6.0 },
+          { id: 'db_lunge', name: 'Walking Lunges', muscle: 'legs', type: 'lunge', desc: 'Hold dumbbells at sides. Step forward and lower until both knees are at 90 degrees.', sets: 3, reps: '12-20', met: 6.0 },
+          { id: 'db_shoulder_press', name: 'Seated DB Press', muscle: 'shoulders', type: 'press', desc: 'Sit on a bench with back support. Press dumbbells overhead until arms are straight.', sets: 3, reps: '8-12', met: 5.0 },
+          { id: 'db_lat_raise', name: 'Lateral Raises', muscle: 'shoulders', type: 'raise', desc: 'Stand tall. Raise dumbbells out to the sides until shoulder height, slight bend in elbows.', sets: 3, reps: '15-20', met: 4.0 },
+          { id: 'db_curl', name: 'Bicep Curls', muscle: 'arms', type: 'curl', desc: 'Stand tall. Curl dumbbells up to shoulders while keeping elbows pinned to your sides.', sets: 3, reps: '10-15', met: 4.0 },
+          { id: 'db_tricep_ext', name: 'Overhead Tricep Ext.', muscle: 'arms', type: 'press', desc: 'Hold one dumbbell overhead with both hands. Lower behind head, then extend arms back up.', sets: 3, reps: '10-15', met: 4.0 },
+          { id: 'db_hammer', name: 'Hammer Curls', muscle: 'arms', type: 'curl', desc: 'Curl dumbbells with a neutral grip.', sets: 3, reps: '10-15', met: 4.0 },
+          { id: 'db_crunch', name: 'Weighted Crunch', muscle: 'core', type: 'core', desc: 'Lie on floor, hold a dumbbell at your chest. Curl shoulders off the floor, squeezing abs.', sets: 3, reps: '15-25', met: 4.0 },
+          { id: 'db_twist', name: 'Russian Twists', muscle: 'core', type: 'core', desc: 'Sit slightly leaned back. Twist torso side to side while holding a dumbbell.', sets: 3, reps: '20-30', met: 4.0 },
+        ];
+
+        const PLANS = {
+          3: {
+            name: "3 Days / Week (Full Body)",
+            desc: "Perfect for beginners or busy schedules. Targets all muscles every session.",
+            days: [
+              { name: "Day 1: Full Body A", exercises: ['db_goblet', 'db_bench', 'db_row', 'db_shoulder_press', 'db_curl'] },
+              { name: "Day 2: Full Body B", exercises: ['db_rdl', 'db_shoulder_press', 'db_pullover', 'db_lunge', 'db_tricep_ext'] },
+              { name: "Day 3: Full Body C", exercises: ['db_goblet', 'db_fly', 'db_row', 'db_lat_raise', 'db_twist'] }
+            ]
+          },
+          4: {
+            name: "4 Days / Week (Upper / Lower)",
+            desc: "Balanced split allowing for heavier weights and adequate recovery.",
+            days: [
+              { name: "Day 1: Upper A", exercises: ['db_bench', 'db_row', 'db_shoulder_press', 'db_curl'] },
+              { name: "Day 2: Lower A", exercises: ['db_goblet', 'db_rdl', 'db_crunch'] },
+              { name: "Day 3: Upper B", exercises: ['db_shoulder_press', 'db_pullover', 'db_fly', 'db_tricep_ext'] },
+              { name: "Day 4: Lower B", exercises: ['db_lunge', 'db_rdl', 'db_twist'] }
+            ]
+          },
+          5: {
+            name: "5 Days / Week (Bro Split)",
+            desc: "Target one or two specific muscle groups per day for maximum volume.",
+            days: [
+              { name: "Day 1: Chest & Core", exercises: ['db_bench', 'db_fly', 'db_crunch', 'db_twist'] },
+              { name: "Day 2: Back", exercises: ['db_row', 'db_pullover'] },
+              { name: "Day 3: Legs", exercises: ['db_goblet', 'db_rdl', 'db_lunge'] },
+              { name: "Day 4: Shoulders", exercises: ['db_shoulder_press', 'db_lat_raise'] },
+              { name: "Day 5: Arms", exercises: ['db_curl', 'db_hammer', 'db_tricep_ext'] }
+            ]
+          }
+        };
+
+        // --- ANIMATION COMPONENTS ---
+        const ExerciseAnimation = ({ type }) => {
+          const styles = `
+            @keyframes curlAnim { 0% { transform: rotate(0deg); } 100% { transform: rotate(-130deg); } }
+            @keyframes pressAnim { 0% { transform: translateY(0); } 100% { transform: translateY(-40px); } }
+            @keyframes squatDown { 0% { transform: translateY(0); } 100% { transform: translateY(30px); } }
+            @keyframes squatLegs { 0% { transform: scaleY(1); } 100% { transform: scaleY(0.6); } }
+            @keyframes raiseAnim { 0% { transform: rotate(0deg); } 100% { transform: rotate(-80deg); } }
+            @keyframes rowAnim { 0% { transform: translate(0, 0); } 100% { transform: translate(-20px, -20px); } }
+          `;
+
+          const renderDumbbell = (x, y) => (
+            <g transform={`translate(${x}, ${y})`}>
+              <rect x="-4" y="-12" width="8" height="24" rx="2" fill="#4B5563" />
+              <rect x="-8" y="-12" width="16" height="6" rx="1" fill="#1F2937" />
+              <rect x="-8" y="6" width="16" height="6" rx="1" fill="#1F2937" />
+            </g>
+          );
+
+          switch(type) {
+            case 'curl':
+              return (
+                <svg viewBox="0 0 200 200" className="w-full h-full bg-neutral-800 rounded-xl">
+                  <style>{styles}</style>
+                  <g transform="translate(100, 100)">
+                    <rect x="-15" y="-40" width="30" height="80" rx="10" fill="#f97316" />
+                    <circle cx="0" cy="-60" r="15" fill="#f97316" />
+                    <rect x="-5" y="-30" width="10" height="40" rx="5" fill="#ea580c" />
+                    <g style={{ transformOrigin: '0px 5px', animation: 'curlAnim 1.5s infinite alternate ease-in-out' }} transform="translate(0, 5)">
+                      <rect x="-4" y="0" width="8" height="35" rx="4" fill="#fb923c" />
+                      {renderDumbbell(0, 35)}
+                    </g>
+                  </g>
+                </svg>
+              );
+            case 'press':
+              return (
+                <svg viewBox="0 0 200 200" className="w-full h-full bg-neutral-800 rounded-xl">
+                  <style>{styles}</style>
+                  <g transform="translate(100, 120)">
+                    <rect x="-15" y="-40" width="30" height="80" rx="10" fill="#f97316" />
+                    <circle cx="0" cy="-60" r="15" fill="#f97316" />
+                    <g style={{ animation: 'pressAnim 1.5s infinite alternate ease-in-out' }}>
+                      <path d="M -15 -30 L -35 -30 L -35 -50" stroke="#fb923c" strokeWidth="10" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+                      <path d="M 15 -30 L 35 -30 L 35 -50" stroke="#fb923c" strokeWidth="10" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+                      {renderDumbbell(-35, -55)}
+                      {renderDumbbell(35, -55)}
+                    </g>
+                  </g>
+                </svg>
+              );
+            case 'squat':
+              return (
+                <svg viewBox="0 0 200 200" className="w-full h-full bg-neutral-800 rounded-xl">
+                  <style>{styles}</style>
+                  <g transform="translate(100, 140)">
+                    <g style={{ transformOrigin: '0 -20px', animation: 'squatLegs 2s infinite alternate ease-in-out' }}>
+                      <rect x="-15" y="-20" width="10" height="50" rx="5" fill="#ea580c" />
+                      <rect x="5" y="-20" width="10" height="50" rx="5" fill="#ea580c" />
+                    </g>
+                    <g style={{ animation: 'squatDown 2s infinite alternate ease-in-out' }}>
+                      <rect x="-15" y="-80" width="30" height="60" rx="10" fill="#f97316" />
+                      <circle cx="0" cy="-100" r="15" fill="#f97316" />
+                      <g transform="translate(0, -60)">
+                        <rect x="-12" y="-4" width="24" height="8" rx="2" fill="#4B5563" />
+                        <rect x="-12" y="-8" width="6" height="16" rx="1" fill="#1F2937" />
+                        <rect x="6" y="-8" width="6" height="16" rx="1" fill="#1F2937" />
+                      </g>
+                    </g>
+                  </g>
+                </svg>
+              );
+            case 'raise':
+            case 'fly':
+              return (
+                <svg viewBox="0 0 200 200" className="w-full h-full bg-neutral-800 rounded-xl">
+                  <style>{styles}</style>
+                  <g transform="translate(100, 100)">
+                    <rect x="-15" y="-20" width="30" height="80" rx="10" fill="#f97316" />
+                    <circle cx="0" cy="-40" r="15" fill="#f97316" />
+                    <g style={{ transformOrigin: '-10px -10px', animation: 'raiseAnim 1.5s infinite alternate ease-in-out' }}>
+                       <rect x="-40" y="-15" width="30" height="10" rx="5" fill="#fb923c" />
+                       <g transform="translate(-45, -10) rotate(90)">{renderDumbbell(0,0)}</g>
+                    </g>
+                    <g style={{ transformOrigin: '10px -10px', animation: 'raiseAnim 1.5s infinite alternate-reverse ease-in-out' }} transform="scale(-1, 1)">
+                       <rect x="-40" y="-15" width="30" height="10" rx="5" fill="#fb923c" />
+                       <g transform="translate(-45, -10) rotate(90)">{renderDumbbell(0,0)}</g>
+                    </g>
+                  </g>
+                </svg>
+              );
+            case 'row':
+            default:
+              return (
+                <svg viewBox="0 0 200 200" className="w-full h-full bg-neutral-800 rounded-xl">
+                  <style>{styles}</style>
+                  <g transform="translate(100, 120)">
+                    <rect x="-60" y="0" width="120" height="10" fill="#4B5563" />
+                    <rect x="-40" y="10" width="10" height="40" fill="#4B5563" />
+                    <rect x="30" y="10" width="10" height="40" fill="#4B5563" />
+                    <g transform="translate(-20, 0) rotate(45)">
+                      <rect x="-15" y="-80" width="30" height="70" rx="10" fill="#f97316" />
+                      <circle cx="0" cy="-95" r="15" fill="#f97316" />
+                    </g>
+                    <g style={{ animation: 'rowAnim 1.5s infinite alternate ease-in-out' }} transform="translate(10, -40)">
+                      <rect x="-5" y="0" width="10" height="40" rx="5" fill="#fb923c" />
+                      <g transform="translate(0, 40)">{renderDumbbell(0,0)}</g>
+                    </g>
+                  </g>
+                </svg>
+              );
+          }
+        };
+
+
+        // --- MAIN APP COMPONENT ---
+        function App() {
+          const [currentTab, setCurrentTab] = useState('home'); 
+          const [selectedPlanDays, setSelectedPlanDays] = useState(null);
+          
+          const [profile, setProfile] = useState({
+            name: '', age: '', weight: '', height: '', gender: 'male', bmi: null, bmiCategory: ''
+          });
+          const [workoutHistory, setWorkoutHistory] = useState([]);
+
+          const [activeWorkoutSession, setActiveWorkoutSession] = useState(null); 
+          const [circuitActiveIndex, setCircuitActiveIndex] = useState(0);
+          const [circuitSets, setCircuitSets] = useState([]); 
+          const [circuitLogs, setCircuitLogs] = useState([]); 
+          
+          const [activeLogPanel, setActiveLogPanel] = useState(null); 
+          const [viewingExercise, setViewingExercise] = useState(null);
+
+          const [showAiModal, setShowAiModal] = useState(false);
+          const [aiGoal, setAiGoal] = useState('');
+          const [aiTime, setAiTime] = useState('30');
+          const [isGenerating, setIsGenerating] = useState(false);
+          const [generatedWorkout, setGeneratedWorkout] = useState(null);
+
+          useEffect(() => {
+            const savedPlan = localStorage.getItem('iron_plan');
+            if (savedPlan) setSelectedPlanDays(parseInt(savedPlan));
+
+            const savedProfile = localStorage.getItem('iron_profile');
+            if (savedProfile) setProfile(JSON.parse(savedProfile));
+
+            const savedHistory = localStorage.getItem('iron_history');
+            if (savedHistory) setWorkoutHistory(JSON.parse(savedHistory));
+          }, []);
+
+          const saveProfile = (newProfile) => {
+            let updatedProfile = { ...newProfile };
+            if (newProfile.weight && newProfile.height) {
+              const hMeters = parseFloat(newProfile.height) / 100;
+              const wKg = parseFloat(newProfile.weight);
+              const bmiVal = (wKg / (hMeters * hMeters)).toFixed(1);
+              updatedProfile.bmi = bmiVal;
+              if (bmiVal < 18.5) updatedProfile.bmiCategory = 'Underweight';
+              else if (bmiVal < 24.9) updatedProfile.bmiCategory = 'Normal Weight';
+              else if (bmiVal < 29.9) updatedProfile.bmiCategory = 'Overweight';
+              else updatedProfile.bmiCategory = 'Obese';
+            } else {
+               updatedProfile.bmi = null;
+               updatedProfile.bmiCategory = '';
+            }
+            setProfile(updatedProfile);
+            localStorage.setItem('iron_profile', JSON.stringify(updatedProfile));
+          };
+
+          const updateProfileField = (field, value) => {
+            saveProfile({ ...profile, [field]: value });
+          };
+
+          const selectPlan = (days) => {
+            setSelectedPlanDays(days);
+            localStorage.setItem('iron_plan', days);
+            setCurrentTab('plan');
+          };
+
+          const calculateCalories = (met, sets) => {
+            const weightToUse = profile.weight ? parseFloat(profile.weight) : 70; 
+            const durationMins = sets * 1.5; 
+            const cals = (met * weightToUse * 3.5) / 200 * durationMins;
+            return Math.round(cals);
+          };
+
+          const getExercise = (id) => EXERCISES.find(ex => ex.id === id);
+
+          const calculateCapabilityStats = () => {
+            let totalVolume = 0;
+            let maxBench1RM = 0;
+            let maxSquat1RM = 0;
+
+            workoutHistory.forEach(session => {
+              session.exercises.forEach(ex => {
+                ex.logs.forEach(log => {
+                  if (log && log.weight && log.reps) {
+                    const w = parseFloat(log.weight);
+                    const r = parseInt(log.reps);
+                    totalVolume += (w * r);
+                    const oneRM = w * (1 + r / 30);
+                    if (ex.id === 'db_bench' && oneRM > maxBench1RM) maxBench1RM = oneRM;
+                    if (ex.id === 'db_goblet' && oneRM > maxSquat1RM) maxSquat1RM = oneRM;
+                  }
+                });
+              });
+            });
+
+            let strengthTier = "Beginner";
+            if (profile.weight && maxBench1RM > 0) {
+              const ratio = maxBench1RM / parseFloat(profile.weight);
+              if (ratio > 1.25) strengthTier = "Advanced";
+              else if (ratio > 0.8) strengthTier = "Intermediate";
+            }
+
+            return { totalVolume, maxBench1RM: Math.round(maxBench1RM), maxSquat1RM: Math.round(maxSquat1RM), strengthTier };
+          };
+
+          const startWorkoutSession = (workoutName, exercisesList) => {
+            const normalizedList = exercisesList.map(ex => {
+              if (typeof ex === 'string') {
+                 const base = getExercise(ex);
+                 return { ...base };
+              }
+              const base = getExercise(ex.id);
+              if (!base) return { ...getExercise('db_bench'), sets: ex.sets || 3, reps: ex.reps || '10' };
+              return { ...base, sets: ex.sets || base.sets, reps: ex.reps || base.reps };
+            });
+
+            setActiveWorkoutSession({ name: workoutName, exercises: normalizedList, startTime: Date.now() });
+            setCircuitActiveIndex(0);
+            setCircuitSets(normalizedList.map(ex => new Array(ex.sets).fill(false)));
+            setCircuitLogs(normalizedList.map(ex => new Array(ex.sets).fill(null)));
+            setActiveLogPanel(null);
+          };
+
+          const startWorkout = (dayIndex) => {
+            const day = PLANS[selectedPlanDays].days[dayIndex];
+            startWorkoutSession(day.name, day.exercises);
+          };
+
+          const startTargetedWorkout = (macroId) => {
+            const macro = MACRO_GROUPS.find(m => m.id === macroId);
+            const availableExs = EXERCISES.filter(e => macro.muscles.includes(e.muscle));
+            const shuffled = [...availableExs].sort(() => 0.5 - Math.random());
+            startWorkoutSession(`${macro.name} Quick Hit`, shuffled.slice(0, 4));
+          };
+
+          const findLastUsedWeight = (exId) => {
+            const exIdx = activeWorkoutSession.exercises.findIndex(e => e.id === exId);
+            if (exIdx !== -1) {
+              for (let i = circuitLogs[exIdx].length - 1; i >= 0; i--) {
+                if (circuitLogs[exIdx][i] && circuitLogs[exIdx][i].weight) {
+                  return circuitLogs[exIdx][i].weight;
+                }
+              }
+            }
+            for (let i = workoutHistory.length - 1; i >= 0; i--) {
+              const historyEx = workoutHistory[i].exercises.find(e => e.id === exId);
+              if (historyEx && historyEx.logs) {
+                for (let j = historyEx.logs.length - 1; j >= 0; j--) {
+                  if (historyEx.logs[j] && historyEx.logs[j].weight) return historyEx.logs[j].weight;
+                }
+              }
+            }
+            return '';
+          };
+
+          const handleSetClick = (exIdx, setIdx) => {
+            const isCurrentlyDone = circuitSets[exIdx][setIdx];
+
+            if (isCurrentlyDone) {
+              const newSets = [...circuitSets];
+              newSets[exIdx] = [...newSets[exIdx]];
+              newSets[exIdx][setIdx] = false;
+              setCircuitSets(newSets);
+              
+              const newLogs = [...circuitLogs];
+              newLogs[exIdx] = [...newLogs[exIdx]];
+              newLogs[exIdx][setIdx] = null;
+              setCircuitLogs(newLogs);
+              
+              if (activeLogPanel?.exIdx === exIdx && activeLogPanel?.setIdx === setIdx) {
+                setActiveLogPanel(null);
+              }
+            } else {
+              const ex = activeWorkoutSession.exercises[exIdx];
+              let targetReps = ex.reps;
+              if (targetReps.includes('-')) {
+                const parts = targetReps.split('-');
+                targetReps = String(Math.round((parseInt(parts[0]) + parseInt(parts[1])) / 2));
+              }
+
+              const defaultWeight = findLastUsedWeight(ex.id);
+
+              setActiveLogPanel({
+                exIdx, setIdx, 
+                inputWeight: defaultWeight, 
+                inputReps: targetReps
+              });
+            }
+          };
+
+          const commitActiveLog = (saveData = true) => {
+            if (!activeLogPanel) return;
+            const { exIdx, setIdx, inputWeight, inputReps } = activeLogPanel;
+
+            const newSets = [...circuitSets];
+            newSets[exIdx] = [...newSets[exIdx]];
+            newSets[exIdx][setIdx] = true;
+            setCircuitSets(newSets);
+
+            if (saveData && inputWeight && inputReps) {
+              const newLogs = [...circuitLogs];
+              newLogs[exIdx] = [...newLogs[exIdx]];
+              newLogs[exIdx][setIdx] = { weight: inputWeight, reps: inputReps };
+              setCircuitLogs(newLogs);
+            }
+
+            setActiveLogPanel(null);
+            const total = newSets.length;
+            for (let i = 1; i <= total; i++) {
+              const checkIdx = (exIdx + i) % total;
+              if (newSets[checkIdx].includes(false)) {
+                setCircuitActiveIndex(checkIdx);
+                break;
+              }
+            }
+          };
+
+          const finishWorkout = () => {
+            const sessionToSave = {
+              date: new Date().toISOString(),
+              name: activeWorkoutSession.name,
+              exercises: activeWorkoutSession.exercises.map((ex, i) => ({
+                id: ex.id,
+                name: ex.name,
+                sets: ex.sets,
+                logs: circuitLogs[i] 
+              }))
+            };
+
+            const newHistory = [...workoutHistory, sessionToSave].slice(-50); 
+            setWorkoutHistory(newHistory);
+            localStorage.setItem('iron_history', JSON.stringify(newHistory));
+
+            alert("Workout Saved to History! Great job!");
+            setCurrentTab('home');
+            setActiveWorkoutSession(null);
+          };
+
+          const generateCustomWorkout = async () => {
+            if (!aiGoal) return alert("Please enter your goal!");
+            setIsGenerating(true);
+            
+            try {
+              const availableIds = EXERCISES.map(e => e.id);
+              const availableText = EXERCISES.map(e => `${e.id} (${e.name}, targets ${e.muscle})`).join(', ');
+              
+              const stats = calculateCapabilityStats();
+              let userContext = profile.weight ? `User is ${profile.age} years old, weighs ${profile.weight}kg. ` : '';
+              if (stats.maxBench1RM > 0) {
+                userContext += `Their estimated 1-Rep Max for Bench Press is ${stats.maxBench1RM}kg and Squat is ${stats.maxSquat1RM}kg. They are classified as ${stats.strengthTier} tier. Use this capability context to recommend appropriate sets, rep ranges, and mention a suggested weight range in your description. `;
+              }
+
+              const prompt = `Create a custom dumbbell workout for someone whose goal is: "${aiGoal}" and has ${aiTime} minutes to workout. ${userContext}
+              Select ONLY from these available exercises: ${availableText}. Make it an effective workout.`;
+
+              const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  contents: [{ parts: [{ text: prompt }] }],
+                  generationConfig: {
+                    responseMimeType: "application/json",
+                    responseSchema: {
+                      type: "OBJECT",
+                      properties: {
+                        name: { type: "STRING" },
+                        description: { type: "STRING" },
+                        exercises: {
+                          type: "ARRAY",
+                          items: {
+                            type: "OBJECT",
+                            properties: {
+                              id: { type: "STRING" },
+                              sets: { type: "INTEGER" },
+                              reps: { type: "STRING" }
+                            },
+                            required: ["id", "sets", "reps"]
+                          }
+                        }
+                      },
+                      required: ["name", "description", "exercises"]
+                    }
+                  }
+                })
+              });
+
+              if (!response.ok) throw new Error("API Response failed");
+              const data = await response.json();
+              const workoutData = JSON.parse(data.candidates[0].content.parts[0].text);
+              
+              setGeneratedWorkout(workoutData);
+              setShowAiModal(false);
+              setCurrentTab('ai_workout_view');
+            } catch (err) {
+              console.error(err);
+              alert("Failed to generate workout. Check API key or try again.");
+            } finally {
+              setIsGenerating(false);
+            }
+          };
+
+          const renderHome = () => (
+            <div className="p-6 space-y-8 animate-[fadeIn_0.5s_ease-out]">
+              <header>
+                <h1 className="text-3xl font-extrabold text-white mb-1">
+                  {profile.name ? `Hi, ${profile.name}!` : <>Iron<span className="text-orange-500">Dumbbell</span></>}
+                </h1>
+                <p className="text-neutral-400">Ready to crush your goals today?</p>
+              </header>
+
+              <section>
+                <button 
+                  onClick={() => setShowAiModal(true)}
+                  className="w-full bg-gradient-to-r from-purple-600 to-blue-600 p-1 rounded-2xl shadow-lg shadow-purple-500/20"
+                >
+                  <div className="bg-neutral-900/40 rounded-xl p-5 flex items-center justify-between">
+                    <div>
+                      <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                        <i className="fas fa-magic text-purple-300"></i>
+                        AI Custom Workout
+                      </h3>
+                      <p className="text-sm text-purple-200/70 mt-1 text-left">Generate a workout tailored to your goals.</p>
+                    </div>
+                    <i className="fas fa-chevron-right text-purple-300"></i>
+                  </div>
+                </button>
+              </section>
+
+              <section>
+                <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+                  <i className="fas fa-chart-line text-orange-500"></i> Quick Target
+                </h2>
+                <div className="grid grid-cols-3 gap-3">
+                    {MACRO_GROUPS.map(macro => (
+                        <button
+                          key={macro.id}
+                          onClick={() => startTargetedWorkout(macro.id)}
+                          className="bg-neutral-800 p-4 rounded-2xl border border-neutral-700 shadow-md active:scale-95"
+                        >
+                          <span className="text-white font-bold text-sm">{macro.name}</span>
+                        </button>
+                    ))}
+                </div>
+              </section>
+
+              {!selectedPlanDays ? (
+                <section>
+                  <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+                    <i className="fas fa-calendar-alt text-orange-500"></i> Choose Your Plan
+                  </h2>
+                  <div className="space-y-4">
+                    {Object.keys(PLANS).map(days => (
+                      <button 
+                        key={days}
+                        onClick={() => selectPlan(parseInt(days))}
+                        className="w-full bg-neutral-800 p-5 rounded-2xl text-left border border-neutral-700 flex justify-between items-center"
+                      >
+                        <div>
+                          <h3 className="text-lg font-bold text-white">{PLANS[days].name}</h3>
+                          <p className="text-sm text-neutral-400 mt-1">{PLANS[days].desc}</p>
+                        </div>
+                        <i className="fas fa-chevron-right text-neutral-500"></i>
+                      </button>
+                    ))}
+                  </div>
+                </section>
+              ) : (
+                <section>
+                  <div className="bg-gradient-to-br from-orange-500 to-red-600 rounded-2xl p-6 shadow-lg shadow-orange-500/20 text-white relative overflow-hidden">
+                    <i className="fas fa-dumbbell absolute -right-4 -bottom-4 text-9xl opacity-20"></i>
+                    <h2 className="text-2xl font-bold mb-1">Current Plan</h2>
+                    <p className="text-orange-100 mb-6">{PLANS[selectedPlanDays].name}</p>
+                    <button 
+                      onClick={() => setCurrentTab('plan')}
+                      className="bg-white text-orange-600 font-bold px-6 py-3 rounded-full shadow-md"
+                    >
+                      View Schedule
+                    </button>
+                  </div>
+                  <div className="mt-8">
+                    <button 
+                      onClick={() => { setSelectedPlanDays(null); localStorage.removeItem('iron_plan'); }}
+                      className="text-neutral-400 text-sm underline"
+                    >
+                      Change Weekly Plan
+                    </button>
+                  </div>
+                </section>
+              )}
+            </div>
+          );
+
+          const renderProfile = () => {
+            const stats = calculateCapabilityStats();
+            let bmiColor = "text-neutral-400";
+            if (profile.bmiCategory === 'Underweight') bmiColor = "text-yellow-400";
+            if (profile.bmiCategory === 'Normal Weight') bmiColor = "text-green-500";
+            if (profile.bmiCategory === 'Overweight') bmiColor = "text-orange-500";
+            if (profile.bmiCategory === 'Obese') bmiColor = "text-red-500";
+
+            return (
+              <div className="p-6 space-y-6 pb-24">
+                <header>
+                  <h2 className="text-2xl font-bold text-white">Athlete Profile</h2>
+                  <p className="text-neutral-400 text-sm mt-1">Your offline metrics and analytics engine.</p>
+                </header>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-gradient-to-br from-neutral-800 to-neutral-900 rounded-2xl p-4 border border-neutral-700/50 relative overflow-hidden">
+                    <i className="fas fa-arrow-trend-up absolute -right-2 -bottom-2 text-6xl text-neutral-700 opacity-20"></i>
+                    <span className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider block mb-1">Strength Tier</span>
+                    <div className="text-lg font-extrabold text-white flex items-center gap-1">
+                      {stats.strengthTier} <i className="fas fa-trophy text-orange-500 text-sm"></i>
+                    </div>
+                    <span className="text-[10px] text-neutral-400">Based on 1RM ratio</span>
+                  </div>
+                  
+                  <div className="bg-gradient-to-br from-neutral-800 to-neutral-900 rounded-2xl p-4 border border-neutral-700/50 relative overflow-hidden">
+                    <i className="fas fa-bullseye absolute -right-2 -bottom-2 text-6xl text-neutral-700 opacity-20"></i>
+                    <span className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider block mb-1">Lifetime Vol.</span>
+                    <div className="text-lg font-extrabold text-orange-400">
+                      {stats.totalVolume > 1000 ? (stats.totalVolume/1000).toFixed(1) + 'k' : stats.totalVolume} <span className="text-xs">kg</span>
+                    </div>
+                    <span className="text-[10px] text-neutral-400">{workoutHistory.length} Workouts</span>
+                  </div>
+                </div>
+
+                {stats.maxBench1RM > 0 && (
+                  <div className="bg-neutral-800 rounded-2xl p-4 border border-neutral-700">
+                     <h3 className="text-xs font-bold text-neutral-400 uppercase tracking-wider mb-3">Estimated 1-Rep Maxes</h3>
+                     <div className="flex justify-between items-center mb-2">
+                       <span className="text-white text-sm">Bench Press</span>
+                       <span className="font-bold text-orange-400">{stats.maxBench1RM} kg</span>
+                     </div>
+                     <div className="flex justify-between items-center">
+                       <span className="text-white text-sm">Squat (Goblet)</span>
+                       <span className="font-bold text-orange-400">{stats.maxSquat1RM} kg</span>
+                     </div>
+                  </div>
+                )}
+
+                <div className="bg-neutral-800 rounded-2xl p-6 border border-neutral-700 space-y-4">
+                  <h3 className="text-xs font-bold text-neutral-400 uppercase tracking-wider mb-2 border-b border-neutral-700 pb-2">Body Metrics</h3>
+                  <div>
+                    <label className="block text-xs font-bold text-neutral-400 mb-1">Name</label>
+                    <input type="text" value={profile.name} onChange={(e) => updateProfileField('name', e.target.value)} className="w-full bg-neutral-900 border border-neutral-700 rounded-lg p-3 text-white focus:border-orange-500 outline-none" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-neutral-400 mb-1">Weight (kg)</label>
+                      <input type="number" value={profile.weight} onChange={(e) => updateProfileField('weight', e.target.value)} className="w-full bg-neutral-900 border border-neutral-700 rounded-lg p-3 text-white focus:border-orange-500 outline-none" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-neutral-400 mb-1">Height (cm)</label>
+                      <input type="number" value={profile.height} onChange={(e) => updateProfileField('height', e.target.value)} className="w-full bg-neutral-900 border border-neutral-700 rounded-lg p-3 text-white focus:border-orange-500 outline-none" />
+                    </div>
+                  </div>
+                  
+                  {profile.bmi && (
+                    <div className="mt-4 pt-4 border-t border-neutral-700 flex justify-between items-center">
+                       <span className="text-sm text-neutral-400">Current BMI</span>
+                       <div className="text-right">
+                          <span className="block text-xl font-bold text-white">{profile.bmi}</span>
+                          <span className={`text-[10px] uppercase font-bold ${bmiColor}`}>{profile.bmiCategory}</span>
+                       </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          };
+
+          const renderActiveWorkout = () => {
+            if (!activeWorkoutSession) return null;
+            const session = activeWorkoutSession;
+            const activeEx = session.exercises[circuitActiveIndex];
+            const allDone = circuitSets.every(exSets => exSets.every(Boolean));
+            const totalCircuitCals = session.exercises.reduce((acc, ex) => acc + calculateCalories(ex.met, ex.sets), 0);
+            const completedSetsCount = circuitSets.flat().filter(Boolean).length;
+            const totalSetsCount = circuitSets.flat().length;
+
+            return (
+              <div className="fixed inset-0 bg-neutral-900 z-50 flex flex-col">
+                <div className="px-6 py-4 flex justify-between items-center border-b border-neutral-800 bg-neutral-900/80 shrink-0">
+                  <button onClick={() => setActiveWorkoutSession(null)} className="text-neutral-400 p-2 -ml-2"><i className="fas fa-arrow-left text-xl"></i></button>
+                  <div className="flex flex-col items-center">
+                     <span className="text-neutral-300 font-medium truncate px-4">{session.name}</span>
+                     <span className="text-orange-400 text-xs flex items-center gap-1 font-bold mt-0.5"><i className="fas fa-fire"></i> ~{totalCircuitCals} kcal</span>
+                  </div>
+                  <span className="text-orange-500 font-bold text-sm">{completedSetsCount} / {totalSetsCount}</span>
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-6 flex flex-col relative">
+                  <div className="w-full h-48 sm:h-64 bg-neutral-800 rounded-2xl mb-4 overflow-hidden border border-neutral-700 shadow-inner shrink-0 relative">
+                    <ExerciseAnimation type={activeEx.type} />
+                    <div className="absolute bottom-2 left-2 bg-black/60 px-3 py-1 rounded-full text-xs font-bold text-white">{activeEx.name}</div>
+                  </div>
+
+                  <h3 className="text-neutral-400 font-bold uppercase tracking-wider text-xs mb-3 shrink-0">Circuit Rotation</h3>
+                  
+                  <div className="space-y-4 pb-32">
+                    {session.exercises.map((ex, exIdx) => {
+                        const isActive = exIdx === circuitActiveIndex;
+                        const isCompleted = circuitSets[exIdx].every(Boolean);
+
+                        return (
+                            <div key={exIdx} className={`p-4 rounded-xl border transition-all duration-300 ${isActive ? 'border-orange-500 bg-orange-500/10 shadow-lg shadow-orange-500/5' : isCompleted ? 'border-neutral-800 bg-neutral-900 opacity-50' : 'border-neutral-700 bg-neutral-800'}`}>
+                              <div className="flex justify-between items-center mb-3">
+                                  <span className={`font-bold ${isActive ? 'text-orange-400' : 'text-white'}`}>{ex.name}</span>
+                                  <span className="text-xs font-medium text-neutral-400 bg-neutral-900 px-2 py-1 rounded-md">{ex.reps} Reps</span>
+                              </div>
+                              
+                              <div className="flex gap-2">
+                                  {circuitSets[exIdx].map((isDone, setIdx) => {
+                                      const isNextTarget = isActive && setIdx === circuitSets[exIdx].findIndex(s => !s);
+                                      const log = circuitLogs[exIdx][setIdx];
+                                      return (
+                                        <button key={setIdx} onClick={() => handleSetClick(exIdx, setIdx)} className={`h-10 flex-1 rounded-lg font-bold text-sm transition-all duration-200 flex flex-col items-center justify-center leading-none ${isDone ? 'bg-orange-500 text-white shadow-md' : isNextTarget ? 'border-2 border-orange-500 text-orange-400 bg-orange-500/10 pulse-border' : 'bg-neutral-700 border border-neutral-600 text-neutral-400'}`}>
+                                            {isDone ? (log ? <span className="text-[10px] mt-0.5">{log.weight}kg × {log.reps}</span> : <i className="fas fa-check-circle"></i>) : (setIdx + 1)}
+                                        </button>
+                                      )
+                                  })}
+                              </div>
+
+                              {activeLogPanel?.exIdx === exIdx && (
+                                <div className="mt-4 pt-4 border-t border-orange-500/30">
+                                   <div className="flex gap-3 mb-3">
+                                      <div className="flex-1">
+                                        <label className="block text-[10px] font-bold text-orange-400/80 uppercase mb-1">Weight (kg)</label>
+                                        <input type="number" value={activeLogPanel.inputWeight} onChange={(e) => setActiveLogPanel({...activeLogPanel, inputWeight: e.target.value})} className="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-3 py-2 text-white outline-none text-sm" />
+                                      </div>
+                                      <div className="flex-1">
+                                        <label className="block text-[10px] font-bold text-orange-400/80 uppercase mb-1">Reps</label>
+                                        <input type="number" value={activeLogPanel.inputReps} onChange={(e) => setActiveLogPanel({...activeLogPanel, inputReps: e.target.value})} className="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-3 py-2 text-white outline-none text-sm" />
+                                      </div>
+                                   </div>
+                                   <div className="flex gap-2">
+                                     <button onClick={() => commitActiveLog(true)} className="flex-1 bg-orange-500 text-white font-bold py-2 rounded-lg text-sm"><i className="fas fa-save"></i> Log Set</button>
+                                     <button onClick={() => commitActiveLog(false)} className="flex-1 bg-neutral-700 text-white font-bold py-2 rounded-lg text-sm">Skip Log</button>
+                                   </div>
+                                </div>
+                              )}
+                            </div>
+                        )
+                    })}
+                  </div>
+                </div>
+
+                <div className="p-4 bg-neutral-900 border-t border-neutral-800 shrink-0 relative z-10">
+                  <button onClick={allDone ? finishWorkout : undefined} disabled={!allDone} className={`w-full py-4 rounded-xl font-bold text-lg shadow-lg ${allDone ? 'bg-green-500 text-white' : 'bg-neutral-800 text-neutral-600'}`}>
+                    {allDone ? 'Complete & Save Workout' : 'Circuit In Progress...'}
+                  </button>
+                </div>
+              </div>
+            );
+          };
+
+          const renderPlanView = () => {
+            if (!selectedPlanDays) return null;
+            const plan = PLANS[selectedPlanDays];
+            return (
+              <div className="p-6 space-y-6 pb-24">
+                <header><h2 className="text-2xl font-bold text-white">{plan.name}</h2></header>
+                <div className="space-y-4">
+                  {plan.days.map((day, idx) => (
+                    <div key={idx} className="bg-neutral-800 rounded-2xl p-5 border border-neutral-700/50">
+                      <div className="flex justify-between items-center mb-4">
+                        <h3 className="text-lg font-bold text-white">{day.name}</h3>
+                        <button onClick={() => startWorkout(idx)} className="bg-orange-500 text-white p-3 rounded-full shadow-lg"><i className="fas fa-play"></i></button>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {day.exercises.map((exId, exIdx) => (
+                          <span key={exIdx} className="text-xs bg-neutral-700 text-neutral-300 px-3 py-1.5 rounded-full">{getExercise(exId).name}</span>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          };
+
+          const renderMuscles = () => {
+            return (
+              <div className="p-6 pb-24 space-y-8">
+                <h2 className="text-2xl font-bold text-white">Exercise Library</h2>
+                {MACRO_GROUPS.map(macro => (
+                  <div key={macro.name} className="space-y-4">
+                    <h3 className="text-lg font-bold text-neutral-400 border-b border-neutral-800 pb-2">{macro.name}</h3>
+                    <div className="grid grid-cols-2 gap-4">
+                      {MUSCLE_GROUPS.filter(m => macro.muscles.includes(m.id)).map(muscle => {
+                        const muscleExercises = EXERCISES.filter(e => e.muscle === muscle.id);
+                        return (
+                          <div key={muscle.id} className="bg-neutral-800 border border-neutral-700 rounded-2xl p-4">
+                            <div className={`w-10 h-10 rounded-full flex items-center justify-center mb-3 ${muscle.color}`}><i className="fas fa-chart-line text-xl"></i></div>
+                            <h3 className="text-white font-bold mb-1">{muscle.name}</h3>
+                            <div className="space-y-2 mt-4">
+                              {muscleExercises.map(ex => (
+                                <button key={ex.id} onClick={() => setViewingExercise(ex)} className="w-full text-left text-sm text-neutral-300 truncate">{ex.name}</button>
+                              ))}
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            );
+          };
+
+          const renderAiWorkoutView = () => {
+            if (!generatedWorkout) return null;
+            return (
+              <div className="p-6 space-y-6 pb-24">
+                <header className="bg-gradient-to-br from-purple-900/50 to-blue-900/50 border border-purple-500/30 rounded-2xl p-6 relative overflow-hidden">
+                  <i className="fas fa-wand-magic-sparkles absolute -right-4 -bottom-4 text-9xl text-purple-500/10"></i>
+                  <h2 className="text-2xl font-bold text-white mb-2">{generatedWorkout.name}</h2>
+                  <p className="text-purple-200 text-sm mb-6 relative z-10">{generatedWorkout.description}</p>
+                  <button onClick={() => startWorkoutSession(generatedWorkout.name, generatedWorkout.exercises)} className="bg-purple-500 text-white font-bold px-6 py-3 rounded-full shadow-lg relative z-10">
+                    <i className="fas fa-play mr-2"></i> Start AI Workout
+                  </button>
+                </header>
+                <div className="space-y-3">
+                  <h3 className="text-neutral-400 font-bold uppercase tracking-wider text-xs mb-4">Generated Routine</h3>
+                  {generatedWorkout.exercises.map((exRaw, idx) => {
+                    const ex = getExercise(exRaw.id) || getExercise('db_bench');
+                    const cals = calculateCalories(ex.met, exRaw.sets);
+                    return (
+                      <div key={idx} className="bg-neutral-800 rounded-xl p-4 border border-neutral-700/50 flex items-center gap-4">
+                        <div className="bg-neutral-900 w-12 h-12 rounded-lg p-2 flex-shrink-0"><ExerciseAnimation type={ex.type} /></div>
+                        <div className="flex-1">
+                          <h4 className="text-white font-bold text-sm">{ex.name}</h4>
+                          <div className="flex items-center gap-3 mt-1">
+                            <p className="text-neutral-400 text-xs">{exRaw.sets} Sets × {exRaw.reps} Reps</p>
+                            <span className="text-orange-400 text-xs bg-orange-500/10 px-2 py-0.5 rounded"><i className="fas fa-fire mr-1"></i>{cals} kcal</span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          };
+
+          const renderAiModal = () => {
+            if (!showAiModal) return null;
+            return (
+              <div className="fixed inset-0 bg-black/80 z-50 flex items-end justify-center p-0">
+                <div className="bg-neutral-900 w-full rounded-t-3xl p-6 border border-purple-500/20">
+                  <div className="flex justify-between items-center mb-6">
+                    <h3 className="text-2xl font-bold text-white"><i className="fas fa-magic text-purple-500 mr-2"></i> AI Generator</h3>
+                    <button onClick={() => setShowAiModal(false)} className="text-neutral-500"><i className="fas fa-arrow-left text-xl"></i></button>
+                  </div>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-bold text-neutral-400 mb-2">What's your goal today?</label>
+                      <input type="text" value={aiGoal} onChange={(e) => setAiGoal(e.target.value)} placeholder="e.g. Burn out my shoulders" className="w-full bg-neutral-800 border border-neutral-700 rounded-xl p-4 text-white outline-none" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-bold text-neutral-400 mb-2">Time Available (mins)</label>
+                      <select value={aiTime} onChange={(e) => setAiTime(e.target.value)} className="w-full bg-neutral-800 border border-neutral-700 rounded-xl p-4 text-white outline-none">
+                        <option value="15">15 Minutes</option><option value="30">30 Minutes</option><option value="45">45 Minutes</option>
+                      </select>
+                    </div>
+                    <button onClick={generateCustomWorkout} disabled={isGenerating || !aiGoal} className="w-full bg-purple-600 text-white font-bold p-4 rounded-xl mt-4">
+                      {isGenerating ? <><i className="fas fa-spinner fa-spin mr-2"></i> Generating...</> : <><i className="fas fa-wand-magic-sparkles mr-2"></i> Create Workout</>}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          };
+
+          const renderExerciseModal = () => {
+            if (!viewingExercise) return null;
+            const estCals = calculateCalories(viewingExercise.met, viewingExercise.sets);
+            return (
+              <div className="fixed inset-0 bg-black/80 z-50 flex items-end justify-center p-0">
+                <div className="bg-neutral-900 w-full rounded-t-3xl max-h-[90vh] overflow-hidden flex flex-col">
+                  <div className="relative w-full h-64 bg-neutral-800">
+                    <ExerciseAnimation type={viewingExercise.type} />
+                    <button onClick={() => setViewingExercise(null)} className="absolute top-4 right-4 bg-black/50 p-3 rounded-full text-white"><i className="fas fa-arrow-left"></i></button>
+                  </div>
+                  <div className="p-6 overflow-y-auto">
+                    <span className="text-xs font-bold uppercase text-orange-500 mb-2 block">{viewingExercise.muscle} Focus</span>
+                    <h3 className="text-2xl font-bold text-white mb-3">{viewingExercise.name}</h3>
+                    <p className="text-neutral-400 mb-6">{viewingExercise.desc}</p>
+                    <div className="grid grid-cols-3 gap-3">
+                       <div className="bg-neutral-800 p-3 rounded-xl text-center"><span className="block text-neutral-500 text-[10px] mb-1">SETS</span><span className="text-white font-bold">{viewingExercise.sets}</span></div>
+                       <div className="bg-neutral-800 p-3 rounded-xl text-center"><span className="block text-neutral-500 text-[10px] mb-1">REPS</span><span className="text-white font-bold">{viewingExercise.reps}</span></div>
+                       <div className="bg-orange-500/10 p-3 rounded-xl text-center"><span className="block text-orange-400 text-[10px] mb-1"><i className="fas fa-fire"></i> BURN</span><span className="text-orange-400 font-bold">~{estCals}</span></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          };
+
+          return (
+            <div className="min-h-screen bg-neutral-950 font-sans text-neutral-200">
+              <main className="pb-24 max-w-lg mx-auto w-full relative min-h-screen">
+                {currentTab === 'home' && renderHome()}
+                {currentTab === 'plan' && (selectedPlanDays ? renderPlanView() : renderHome())}
+                {currentTab === 'muscles' && renderMuscles()}
+                {currentTab === 'ai_workout_view' && renderAiWorkoutView()}
+                {currentTab === 'profile' && renderProfile()}
+              </main>
+
+              {activeWorkoutSession && renderActiveWorkout()}
+              {renderAiModal()}
+              {renderExerciseModal()}
+
+              {!activeWorkoutSession && (
+                <div className="fixed bottom-0 left-0 right-0 bg-neutral-900/90 border-t border-neutral-800 z-40">
+                  <div className="max-w-lg mx-auto flex justify-around p-2">
+                    <button onClick={() => setCurrentTab('home')} className={`flex flex-col items-center p-3 ${currentTab === 'home' ? 'text-orange-500' : 'text-neutral-500'}`}><i className="fas fa-home text-2xl"></i><span className="text-[10px] mt-1">Home</span></button>
+                    <button onClick={() => selectedPlanDays ? setCurrentTab('plan') : setCurrentTab('home')} className={`flex flex-col items-center p-3 ${currentTab === 'plan' ? 'text-orange-500' : 'text-neutral-500'}`}><i className="fas fa-calendar-alt text-2xl"></i><span className="text-[10px] mt-1">Plan</span></button>
+                    <button onClick={() => setCurrentTab('muscles')} className={`flex flex-col items-center p-3 ${currentTab === 'muscles' ? 'text-orange-500' : 'text-neutral-500'}`}><i className="fas fa-dumbbell text-2xl"></i><span className="text-[10px] mt-1">Exercises</span></button>
+                    <button onClick={() => setCurrentTab('profile')} className={`flex flex-col items-center p-3 ${currentTab === 'profile' ? 'text-orange-500' : 'text-neutral-500'}`}><i className="fas fa-user text-2xl"></i><span className="text-[10px] mt-1">Profile</span></button>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
+
